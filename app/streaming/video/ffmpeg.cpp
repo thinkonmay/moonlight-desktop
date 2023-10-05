@@ -485,8 +485,10 @@ bool FFmpegVideoDecoder::completeInitialization(const AVCodec* decoder, enum AVP
         }
 
         // Some decoders won't output on the first frame, so we'll submit
-        // a few test frames if we get an EAGAIN error.
-        for (int retries = 0; retries < 5; retries++) {
+        // a few test frames if we get an EAGAIN error. We will wait up
+        // to 2 seconds for the first frame to arrive if we continue to
+        // receive EAGAIN errors.
+        for (int retries = 0; retries < 20; retries++) {
             // Most FFmpeg decoders process input using a "push" model.
             // We'll see those fail here if the format is not supported.
             err = avcodec_send_packet(m_VideoDecoderCtx, m_Pkt);
