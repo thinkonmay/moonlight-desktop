@@ -234,24 +234,24 @@ if "%ML_SYMBOL_STORE%" NEQ "" (
     if !ERRORLEVEL! NEQ 0 goto Error
 )
 
-echo Building MSI
-msbuild -Restore %SOURCE_ROOT%\wix\Moonlight\Moonlight.wixproj /p:Configuration=%BUILD_CONFIG% /p:Platform=%ARCH%
-if !ERRORLEVEL! NEQ 0 goto Error
+@REM echo Building MSI
+@REM msbuild -Restore %SOURCE_ROOT%\wix\Moonlight\Moonlight.wixproj /p:Configuration=%BUILD_CONFIG% /p:Platform=%ARCH%
+@REM if !ERRORLEVEL! NEQ 0 goto Error
 
 echo Copying application binary to deployment directory
 copy %BUILD_FOLDER%\app\%BUILD_CONFIG%\Moonlight.exe %DEPLOY_FOLDER%
 if !ERRORLEVEL! NEQ 0 goto Error
 
-echo Building portable package
-rem This must be done after WiX harvesting and signing, since the VCRT dlls are MS signed
-rem and should not be harvested for inclusion in the full installer
-copy "%VC_REDIST_DLL_PATH%\*.dll" %DEPLOY_FOLDER%
-if !ERRORLEVEL! NEQ 0 goto Error
-rem This file tells Moonlight that it's a portable installation
-echo. > %DEPLOY_FOLDER%\portable.dat
-if !ERRORLEVEL! NEQ 0 goto Error
-7z a %INSTALLER_FOLDER%\MoonlightPortable-%ARCH%-%VERSION%.zip %DEPLOY_FOLDER%\*
-if !ERRORLEVEL! NEQ 0 goto Error
+@REM echo Building portable package
+@REM rem This must be done after WiX harvesting and signing, since the VCRT dlls are MS signed
+@REM rem and should not be harvested for inclusion in the full installer
+@REM copy "%VC_REDIST_DLL_PATH%\*.dll" %DEPLOY_FOLDER%
+@REM if !ERRORLEVEL! NEQ 0 goto Error
+@REM rem This file tells Moonlight that it's a portable installation
+@REM echo. > %DEPLOY_FOLDER%\portable.dat
+@REM if !ERRORLEVEL! NEQ 0 goto Error
+@REM 7z a %INSTALLER_FOLDER%\MoonlightPortable-%ARCH%-%VERSION%.zip %DEPLOY_FOLDER%\*
+@REM if !ERRORLEVEL! NEQ 0 goto Error
 
 echo Build successful for Moonlight v%VERSION% %ARCH% binaries!
 exit /b 0
