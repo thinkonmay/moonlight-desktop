@@ -1,7 +1,6 @@
 #pragma once
 
 #include "settings/streamingpreferences.h"
-#include "backend/computermanager.h"
 
 #include <SDL.h>
 

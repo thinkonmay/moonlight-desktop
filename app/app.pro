@@ -162,17 +162,8 @@ macx {
 }
 
 SOURCES += \
-    backend/nvaddress.cpp \
-    backend/nvapp.cpp \
     main.cpp \
-    backend/identitymanager.cpp \
-    backend/nvcomputer.cpp \
-    backend/nvhttp.cpp \
-    backend/nvpairingmanager.cpp \
-    backend/computermanager.cpp \
-    backend/boxartmanager.cpp \
-    backend/richpresencemanager.cpp \
-    settings/compatfetcher.cpp \
+    backend/nvaddress.cpp \
     settings/mappingfetcher.cpp \
     settings/streamingpreferences.cpp \
     streaming/input/abstouch.cpp \
@@ -194,17 +185,8 @@ SOURCES += \
 
 HEADERS += \
     backend/nvaddress.h \
-    backend/nvapp.h \
-    settings/compatfetcher.h \
     settings/mappingfetcher.h \
     utils.h \
-    backend/identitymanager.h \
-    backend/nvcomputer.h \
-    backend/nvhttp.h \
-    backend/nvpairingmanager.h \
-    backend/computermanager.h \
-    backend/boxartmanager.h \
-    backend/richpresencemanager.h \
     settings/streamingpreferences.h \
     streaming/input/input.h \
     streaming/session.h \

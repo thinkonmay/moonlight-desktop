@@ -1,7 +1,6 @@
 #include "session.h"
 #include "settings/streamingpreferences.h"
 #include "streaming/streamutils.h"
-#include "backend/richpresencemanager.h"
 
 #include <Limelight.h>
 #include <SDL.h>
@@ -539,11 +538,10 @@ bool Session::populateDecoderProperties(SDL_Window* window)
     return true;
 }
 
-Session::Session(NvComputer* computer, NvApp& app, StreamingPreferences *preferences)
+Session::Session(NvComputer* computer, StreamingPreferences *preferences)
     : m_Preferences(preferences ? preferences : new StreamingPreferences(this)),
       m_IsFullScreen(m_Preferences->windowMode != StreamingPreferences::WM_WINDOWED || !WMUtils::isRunningDesktopEnvironment()),
       m_Computer(computer),
-      m_App(app),
       m_Window(nullptr),
       m_VideoDecoder(nullptr),
       m_DecoderLock(0),
@@ -697,20 +695,20 @@ bool Session::initialize()
         }
 
 #ifdef Q_OS_DARWIN
-        {
-            // Prior to GFE 3.11, GFE did not allow us to constrain
-            // the number of reference frames, so we have to fixup the SPS
-            // to allow decoding via VideoToolbox on macOS. Since we don't
-            // have fixup code for HEVC, just avoid it if GFE is too old.
-            QVector<int> gfeVersion = NvHTTP::parseQuad(m_Computer->gfeVersion);
-            if (gfeVersion.isEmpty() || // Very old versions don't have GfeVersion at all
-                    gfeVersion[0] < 3 ||
-                    (gfeVersion[0] == 3 && gfeVersion[1] < 11)) {
-                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-                            "Disabling HEVC on macOS due to old GFE version");
-                m_StreamConfig.supportedVideoFormats &= ~VIDEO_FORMAT_MASK_H265;
-            }
-        }
+        // {
+        //     // Prior to GFE 3.11, GFE did not allow us to constrain
+        //     // the number of reference frames, so we have to fixup the SPS
+        //     // to allow decoding via VideoToolbox on macOS. Since we don't
+        //     // have fixup code for HEVC, just avoid it if GFE is too old.
+        //     QVector<int> gfeVersion = NvHTTP::parseQuad(m_Computer->gfeVersion);
+        //     if (gfeVersion.isEmpty() || // Very old versions don't have GfeVersion at all
+        //             gfeVersion[0] < 3 ||
+        //             (gfeVersion[0] == 3 && gfeVersion[1] < 11)) {
+        //         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+        //                     "Disabling HEVC on macOS due to old GFE version");
+        //         m_StreamConfig.supportedVideoFormats &= ~VIDEO_FORMAT_MASK_H265;
+        //     }
+        // }
 #endif
         break;
     case StreamingPreferences::VCC_FORCE_H264:
@@ -810,10 +808,6 @@ bool Session::validateLaunch(SDL_Window* testWindow)
     if (!m_Computer->isSupportedServerVersion) {
         emit displayLaunchError(tr("The version of GeForce Experience on %1 is not supported by this build of Moonlight. You must update Moonlight to stream from %1.").arg(m_Computer->name));
         return false;
-    }
-
-    if (m_Preferences->absoluteMouseMode && !m_App.isAppCollectorGame) {
-        emitLaunchWarning(tr("Your selection to enable remote desktop mouse mode may cause problems in games."));
     }
 
     if (m_Preferences->videoDecoderSelection == StreamingPreferences::VDS_FORCE_SOFTWARE) {
@@ -1065,21 +1059,6 @@ private:
 
         // Finish cleanup of the connection state
         LiStopConnection();
-
-        // Perform a best-effort app quit
-        if (shouldQuit) {
-            NvHTTP http(m_Session->m_Computer);
-
-            // Logging is already done inside NvHTTP
-            try {
-                http.quitApp();
-            } catch (const GfeHttpResponseException&) {
-            } catch (const QtNetworkReplyException&) {
-            }
-
-            // Session is finished now
-            emit m_Session->sessionFinished(m_Session->m_PortTestResults);
-        }
     }
 
     Session* m_Session;
@@ -1328,11 +1307,6 @@ bool Session::startConnectionAsync()
     // have time to read any messages present on the segue
     SDL_Delay(1500);
 
-    // The UI should have ensured the old game was already quit
-    // if we decide to stream a different game.
-    Q_ASSERT(m_Computer->currentGameId == 0 ||
-             m_Computer->currentGameId == m_App.id);
-
     bool enableGameOptimizations;
     if (m_Computer->isNvidiaServerSoftware) {
         // GFE will set all settings to 720p60 if it doesn't recognize
@@ -1358,23 +1332,15 @@ bool Session::startConnectionAsync()
 
     QString rtspSessionUrl;
 
-    try {
-        NvHTTP http(m_Computer);
-        http.startApp(m_Computer->currentGameId != 0 ? "resume" : "launch",
-                      m_Computer->isNvidiaServerSoftware,
-                      m_App.id, &m_StreamConfig,
-                      enableGameOptimizations,
-                      m_Preferences->playAudioOnHost,
-                      m_InputHandler->getAttachedGamepadMask(),
-                      !m_Preferences->multiController,
-                      rtspSessionUrl);
-    } catch (const GfeHttpResponseException& e) {
-        emit displayLaunchError(tr("Host returned error: %1").arg(e.toQString()));
-        return false;
-    } catch (const QtNetworkReplyException& e) {
-        emit displayLaunchError(e.toQString());
-        return false;
-    }
+    // NvHTTP http(m_Computer);
+    // http.startApp(m_Computer->currentGameId != 0 ? "resume" : "launch",
+    //               m_Computer->isNvidiaServerSoftware,
+    //               m_App.id, &m_StreamConfig,
+    //               enableGameOptimizations,
+    //               m_Preferences->playAudioOnHost,
+    //               m_InputHandler->getAttachedGamepadMask(),
+    //               !m_Preferences->multiController,
+    //               rtspSessionUrl);
 
     QByteArray hostnameStr = m_Computer->activeAddress.address().toLatin1();
     QByteArray siAppVersion = m_Computer->appVersion.toLatin1();
@@ -1413,25 +1379,26 @@ bool Session::startConnectionAsync()
         // Use 1392 byte video packets by default
         m_StreamConfig.packetSize = 1392;
 
-        // getActiveAddressReachability() does network I/O, so we only attempt to check
-        // reachability if we've already contacted the PC successfully.
-        switch (m_Computer->getActiveAddressReachability()) {
-        case NvComputer::RI_LAN:
-            // This address is on-link, so treat it as a local address
-            // even if it's not in RFC 1918 space or it's an IPv6 address.
-            m_StreamConfig.streamingRemotely = STREAM_CFG_LOCAL;
-            break;
-        case NvComputer::RI_VPN:
-            // It looks like our route to this PC is over a VPN, so cap at 1024 bytes.
-            // Treat it as remote even if the target address is in RFC 1918 address space.
-            m_StreamConfig.streamingRemotely = STREAM_CFG_REMOTE;
-            m_StreamConfig.packetSize = 1024;
-            break;
-        default:
-            // If we don't have reachability info, let moonlight-common-c decide.
-            m_StreamConfig.streamingRemotely = STREAM_CFG_AUTO;
-            break;
-        }
+        // TODO
+        // // getActiveAddressReachability() does network I/O, so we only attempt to check
+        // // reachability if we've already contacted the PC successfully.
+        // switch (m_Computer->getActiveAddressReachability()) {
+        // case NvComputer::RI_LAN:
+        //     // This address is on-link, so treat it as a local address
+        //     // even if it's not in RFC 1918 space or it's an IPv6 address.
+        //     m_StreamConfig.streamingRemotely = STREAM_CFG_LOCAL;
+        //     break;
+        // case NvComputer::RI_VPN:
+        //     // It looks like our route to this PC is over a VPN, so cap at 1024 bytes.
+        //     // Treat it as remote even if the target address is in RFC 1918 address space.
+        //     m_StreamConfig.streamingRemotely = STREAM_CFG_REMOTE;
+        //     m_StreamConfig.packetSize = 1024;
+        //     break;
+        // default:
+        //     // If we don't have reachability info, let moonlight-common-c decide.
+        //     m_StreamConfig.streamingRemotely = STREAM_CFG_AUTO;
+        //     break;
+        // }
     }
 
     int err = LiStartConnection(&hostInfo, &m_StreamConfig, &k_ConnCallbacks,
@@ -1780,9 +1747,6 @@ void Session::execInternal()
     // (m_UnexpectedTermination is set back to true).
     m_UnexpectedTermination = false;
 
-    // Start rich presence to indicate we're in game
-    RichPresenceManager presence(*m_Preferences, m_App.name);
-
     // Hijack this thread to be the SDL main thread. We have to do this
     // because we want to suspend all Qt processing until the stream is over.
     SDL_Event event;
@@ -1798,7 +1762,6 @@ void Session::execInternal()
         // issues that could cause indefinite timeouts, delayed joystick detection,
         // and other problems.
         if (!SDL_WaitEventTimeout(&event, 1000)) {
-            presence.runCallbacks();
             continue;
         }
 #else
@@ -1814,7 +1777,6 @@ void Session::execInternal()
             // ARM core in the Steam Link, so we will wait 10 ms instead.
             SDL_Delay(10);
 #endif
-            presence.runCallbacks();
             continue;
         }
 #endif
@@ -1879,7 +1841,6 @@ void Session::execInternal()
                 break;
             }
 
-            presence.runCallbacks();
 
             // Capture the mouse on SDL_WINDOWEVENT_ENTER if needed
             if (needsFirstEnterCapture && event.window.event == SDL_WINDOWEVENT_ENTER) {
@@ -2065,12 +2026,10 @@ void Session::execInternal()
 
         case SDL_KEYUP:
         case SDL_KEYDOWN:
-            presence.runCallbacks();
             m_InputHandler->handleKeyEvent(&event.key);
             break;
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
-            presence.runCallbacks();
             m_InputHandler->handleMouseButtonEvent(&event.button);
             break;
         case SDL_MOUSEMOTION:
@@ -2084,7 +2043,6 @@ void Session::execInternal()
             break;
         case SDL_CONTROLLERBUTTONDOWN:
         case SDL_CONTROLLERBUTTONUP:
-            presence.runCallbacks();
             m_InputHandler->handleControllerButtonEvent(&event.cbutton);
             break;
 #if SDL_VERSION_ATLEAST(2, 0, 14)

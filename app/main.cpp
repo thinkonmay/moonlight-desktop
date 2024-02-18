@@ -10,6 +10,7 @@
 #include <QFont>
 #include <QFile>
 #include <QDir>
+#include <QSettings>
 #include <QThread>
 #include <QThreadPool>
 #include <QCursor>
@@ -34,7 +35,6 @@
 
 #include "path.h"
 #include "utils.h"
-#include "backend/computermanager.h"
 #include "backend/systemproperties.h"
 #include "streaming/session.h"
 #include "settings/streamingpreferences.h"
@@ -427,9 +427,6 @@ int main(int argc, char *argv[])
     QNetworkProxy noProxy(QNetworkProxy::NoProxy);
     QNetworkProxy::setApplicationProxy(noProxy);
 
-    // Register custom metatypes for use in signals
-    qRegisterMetaType<NvApp>("NvApp");
-
     // Allow the display to sleep by default. We will manually use SDL_DisableScreenSaver()
     // and SDL_EnableScreenSaver() when appropriate. This hint must be set before
     // initializing the SDL video subsystem to have any effect.
@@ -597,9 +594,6 @@ int main(int argc, char *argv[])
                                                    [](QQmlEngine* qmlEngine, QJSEngine*) -> QObject* {
                                                        return new StreamingPreferences(qmlEngine);
                                                    });
-
-    // Create the identity manager on the main thread
-    IdentityManager::get();
 
     // We require the Material theme
     QQuickStyle::setStyle("Material");

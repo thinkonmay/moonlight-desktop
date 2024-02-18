@@ -5,10 +5,57 @@
 #include <Limelight.h>
 #include <opus_multistream.h>
 #include "settings/streamingpreferences.h"
+#include "backend/nvaddress.h"
 #include "input/input.h"
 #include "video/decoder.h"
 #include "audio/renderers/renderer.h"
 #include "video/overlaymanager.h"
+
+
+class NvDisplayMode
+{
+public:
+    bool operator==(const NvDisplayMode& other) const
+    {
+        return width == other.width &&
+                height == other.height &&
+                refreshRate == other.refreshRate;
+    }
+
+    int width;
+    int height;
+    int refreshRate;
+};
+
+class NvComputer
+{
+public:
+    // Ephemeral traits
+    NvAddress activeAddress;
+    QVector<NvDisplayMode> displayModes;
+
+    uint16_t activeHttpsPort;
+    int currentGameId;
+    QString gfeVersion;
+    QString appVersion;
+    int maxLumaPixelsHEVC;
+    int serverCodecModeSupport;
+    QString gpuModel;
+    bool isSupportedServerVersion;
+
+    // Persisted traits
+    NvAddress localAddress;
+    NvAddress remoteAddress;
+    NvAddress ipv6Address;
+    NvAddress manualAddress;
+    QByteArray macAddress;
+    QString name;
+    bool hasCustomName;
+    QString uuid;
+    bool isNvidiaServerSoftware;
+    // Remember to update isEqualSerialized() when adding fields here!
+};
+
 
 class Session : public QObject
 {
@@ -20,7 +67,7 @@ class Session : public QObject
     friend class ExecThread;
 
 public:
-    explicit Session(NvComputer* computer, NvApp& app, StreamingPreferences *preferences = nullptr);
+    explicit Session(NvComputer* computer, StreamingPreferences *preferences = nullptr);
 
     // NB: This may not get destroyed for a long time! Don't put any cleanup here.
     // Use Session::exec() or DeferredSessionCleanupTask instead.
@@ -159,7 +206,6 @@ private:
     DECODER_RENDERER_CALLBACKS m_VideoCallbacks;
     AUDIO_RENDERER_CALLBACKS m_AudioCallbacks;
     NvComputer* m_Computer;
-    NvApp m_App;
     SDL_Window* m_Window;
     IVideoDecoder* m_VideoDecoder;
     SDL_SpinLock m_DecoderLock;
