@@ -6,11 +6,8 @@ import SdlGamepadKeyNavigation 1.0
 import Session 1.0
 
 Item {
-    property Session session
     property string appName
-    property string stageText : isResume ? qsTr("Resuming %1...").arg(appName) :
-                                           qsTr("Starting %1...").arg(appName)
-    property bool isResume : false
+    property string stageText : qsTr("Starting %1...").arg(appName)
     property bool quitAfter : false
 
     function stageStarting(stage)
@@ -62,12 +59,6 @@ Item {
 
     function quitStarting()
     {
-        // Avoid the push transition animation
-        var component = Qt.createComponent("QuitSegue.qml")
-        stackView.replace(stackView.currentItem, component.createObject(stackView, {"appName": appName}), StackView.Immediate)
-
-        // Show the Qt window again to show quit segue
-        window.visible = true
     }
 
     function sessionFinished(portTestResult)
@@ -79,32 +70,7 @@ Item {
         // Enable GUI gamepad usage now
         SdlGamepadKeyNavigation.enable()
 
-        if (quitAfter) {
-            if (streamSegueErrorDialog.text) {
-                // Quit when the error dialog is acknowledged
-                streamSegueErrorDialog.quitAfter = quitAfter
-                streamSegueErrorDialog.open()
-            }
-            else {
-                // Quit immediately
-                Qt.quit()
-            }
-        } else {
-            // Exit this view
-            stackView.pop()
-
-            // Show the Qt window again after streaming
-            window.visible = true
-
-            // Display any launch errors. We do this after
-            // the Qt UI is visible again to prevent losing
-            // focus on the dialog which would impact gamepad
-            // users.
-            if (streamSegueErrorDialog.text) {
-                streamSegueErrorDialog.quitAfter = quitAfter
-                streamSegueErrorDialog.open()
-            }
-        }
+        Qt.quit()
     }
 
     function sessionReadyForDeletion()

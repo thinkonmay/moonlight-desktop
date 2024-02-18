@@ -8,6 +8,10 @@
 #include <QNetworkProxyFactory>
 #include <QPalette>
 #include <QFont>
+#include <QFile>
+#include <QDir>
+#include <QThread>
+#include <QThreadPool>
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QFile>
@@ -28,16 +32,8 @@
 #include <openssl/ssl.h>
 #endif
 
-#include "cli/listapps.h"
-#include "cli/quitstream.h"
-#include "cli/startstream.h"
-#include "cli/pair.h"
-#include "cli/commandlineparser.h"
 #include "path.h"
 #include "utils.h"
-#include "gui/computermodel.h"
-#include "gui/appmodel.h"
-#include "backend/autoupdatechecker.h"
 #include "backend/computermanager.h"
 #include "backend/systemproperties.h"
 #include "streaming/session.h"
@@ -511,35 +507,6 @@ int main(int argc, char *argv[])
 
     QGuiApplication app(argc, argv);
 
-    GlobalCommandLineParser parser;
-    GlobalCommandLineParser::ParseResult commandLineParserResult = parser.parse(app.arguments());
-    switch (commandLineParserResult) {
-    case GlobalCommandLineParser::ListRequested:
-#ifdef USE_CUSTOM_LOGGER
-        // Don't log to the console since it will jumble the command output
-        s_SuppressVerboseOutput = true;
-#endif
-#ifdef Q_OS_WIN32
-        // Attach to the console to be able to print output.
-        // Since we're a /SUBSYSTEM:WINDOWS app, we won't be attached by default.
-        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-            HANDLE conOut = GetStdHandle(STD_OUTPUT_HANDLE);
-            if (conOut != INVALID_HANDLE_VALUE && conOut != NULL) {
-                freopen("CONOUT$", "w", stdout);
-                setvbuf(stdout, NULL, _IONBF, 0);
-            }
-            HANDLE conErr = GetStdHandle(STD_ERROR_HANDLE);
-            if (conErr != INVALID_HANDLE_VALUE && conErr != NULL) {
-                freopen("CONOUT$", "w", stderr);
-                setvbuf(stderr, NULL, _IONBF, 0);
-            }
-        }
-#endif
-        break;
-    default:
-        break;
-    }
-
     SDL_version compileVersion;
     SDL_VERSION(&compileVersion);
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
@@ -614,19 +581,7 @@ int main(int argc, char *argv[])
     qputenv("SDL_VIDEO_X11_WMCLASS", "com.moonlight_stream.Moonlight");
 
     // Register our C++ types for QML
-    qmlRegisterType<ComputerModel>("ComputerModel", 1, 0, "ComputerModel");
-    qmlRegisterType<AppModel>("AppModel", 1, 0, "AppModel");
     qmlRegisterUncreatableType<Session>("Session", 1, 0, "Session", "Session cannot be created from QML");
-    qmlRegisterSingletonType<ComputerManager>("ComputerManager", 1, 0,
-                                              "ComputerManager",
-                                              [](QQmlEngine*, QJSEngine*) -> QObject* {
-                                                  return new ComputerManager();
-                                              });
-    qmlRegisterSingletonType<AutoUpdateChecker>("AutoUpdateChecker", 1, 0,
-                                                "AutoUpdateChecker",
-                                                [](QQmlEngine*, QJSEngine*) -> QObject* {
-                                                    return new AutoUpdateChecker();
-                                                });
     qmlRegisterSingletonType<SystemProperties>("SystemProperties", 1, 0,
                                                "SystemProperties",
                                                [](QQmlEngine*, QJSEngine*) -> QObject* {
@@ -661,63 +616,13 @@ int main(int argc, char *argv[])
     }
 
     QQmlApplicationEngine engine;
-    QString initialView;
-    bool hasGUI = true;
+    QString initialView = "qrc:/gui/StreamSegue.qml";
+    engine.rootContext()->setContextProperty("initialView", initialView);
 
-    switch (commandLineParserResult) {
-    case GlobalCommandLineParser::NormalStartRequested:
-        initialView = "qrc:/gui/PcView.qml";
-        break;
-    case GlobalCommandLineParser::StreamRequested:
-        {
-            initialView = "qrc:/gui/CliStartStreamSegue.qml";
-            StreamingPreferences* preferences = new StreamingPreferences(&app);
-            StreamCommandLineParser streamParser;
-            streamParser.parse(app.arguments(), preferences);
-            QString host    = streamParser.getHost();
-            QString appName = streamParser.getAppName();
-            auto launcher   = new CliStartStream::Launcher(host, appName, preferences, &app);
-            engine.rootContext()->setContextProperty("launcher", launcher);
-            break;
-        }
-    case GlobalCommandLineParser::QuitRequested:
-        {
-            initialView = "qrc:/gui/CliQuitStreamSegue.qml";
-            QuitCommandLineParser quitParser;
-            quitParser.parse(app.arguments());
-            auto launcher = new CliQuitStream::Launcher(quitParser.getHost(), &app);
-            engine.rootContext()->setContextProperty("launcher", launcher);
-            break;
-        }
-    case GlobalCommandLineParser::PairRequested:
-        {
-            initialView = "qrc:/gui/CliPair.qml";
-            PairCommandLineParser pairParser;
-            pairParser.parse(app.arguments());
-            auto launcher = new CliPair::Launcher(pairParser.getHost(), pairParser.getPredefinedPin(), &app);
-            engine.rootContext()->setContextProperty("launcher", launcher);
-            break;
-        }
-    case GlobalCommandLineParser::ListRequested:
-        {
-            ListCommandLineParser listParser;
-            listParser.parse(app.arguments());
-            auto launcher = new CliListApps::Launcher(listParser.getHost(), listParser, &app);
-            launcher->execute(new ComputerManager(&app));
-            hasGUI = false;
-            break;
-        }
-    }
-
-    if (hasGUI) {
-        engine.rootContext()->setContextProperty("initialView", initialView);
-
-        // Load the main.qml file
-        engine.load(QUrl(QStringLiteral("qrc:/gui/main.qml")));
-        if (engine.rootObjects().isEmpty())
-            return -1;
-    }
-
+    // Load the main.qml file
+    engine.load(QUrl(QStringLiteral("qrc:/gui/main.qml")));
+    if (engine.rootObjects().isEmpty())
+        return -1;
     int err = app.exec();
 
     // Give worker tasks time to properly exit. Fixes PendingQuitTask

@@ -164,9 +164,7 @@ macx {
 SOURCES += \
     backend/nvaddress.cpp \
     backend/nvapp.cpp \
-    cli/pair.cpp \
     main.cpp \
-    backend/computerseeker.cpp \
     backend/identitymanager.cpp \
     backend/nvcomputer.cpp \
     backend/nvhttp.cpp \
@@ -174,10 +172,6 @@ SOURCES += \
     backend/computermanager.cpp \
     backend/boxartmanager.cpp \
     backend/richpresencemanager.cpp \
-    cli/commandlineparser.cpp \
-    cli/listapps.cpp \
-    cli/quitstream.cpp \
-    cli/startstream.cpp \
     settings/compatfetcher.cpp \
     settings/mappingfetcher.cpp \
     settings/streamingpreferences.cpp \
@@ -190,10 +184,7 @@ SOURCES += \
     streaming/session.cpp \
     streaming/audio/audio.cpp \
     streaming/audio/renderers/sdlaud.cpp \
-    gui/computermodel.cpp \
-    gui/appmodel.cpp \
     streaming/streamutils.cpp \
-    backend/autoupdatechecker.cpp \
     path.cpp \
     settings/mappingmanager.cpp \
     gui/sdlgamepadkeynavigation.cpp \
@@ -204,11 +195,9 @@ SOURCES += \
 HEADERS += \
     backend/nvaddress.h \
     backend/nvapp.h \
-    cli/pair.h \
     settings/compatfetcher.h \
     settings/mappingfetcher.h \
     utils.h \
-    backend/computerseeker.h \
     backend/identitymanager.h \
     backend/nvcomputer.h \
     backend/nvhttp.h \
@@ -216,20 +205,13 @@ HEADERS += \
     backend/computermanager.h \
     backend/boxartmanager.h \
     backend/richpresencemanager.h \
-    cli/commandlineparser.h \
-    cli/listapps.h \
-    cli/quitstream.h \
-    cli/startstream.h \
     settings/streamingpreferences.h \
     streaming/input/input.h \
     streaming/session.h \
     streaming/audio/renderers/renderer.h \
     streaming/audio/renderers/sdl.h \
-    gui/computermodel.h \
-    gui/appmodel.h \
     streaming/video/decoder.h \
     streaming/streamutils.h \
-    backend/autoupdatechecker.h \
     path.h \
     settings/mappingmanager.h \
     gui/sdlgamepadkeynavigation.h \
