@@ -613,6 +613,14 @@ int main(int argc, char *argv[])
     QString initialView = "qrc:/gui/StreamSegue.qml";
     engine.rootContext()->setContextProperty("initialView", initialView);
 
+
+    
+    
+    StreamingPreferences* preferences = new StreamingPreferences(&app);
+    auto session = new Session(new NvComputer(),preferences);
+
+    engine.rootContext()->setContextProperty("session", session);
+
     // Load the main.qml file
     engine.load(QUrl(QStringLiteral("qrc:/gui/main.qml")));
     if (engine.rootObjects().isEmpty())

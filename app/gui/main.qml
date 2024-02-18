@@ -15,64 +15,17 @@ ApplicationWindow {
     width: 1280
     height: 600
 
-    Component.onCompleted: {
-        if (SystemProperties.usesMaterial3Theme) {
-            Material.background = "#303030"
-        }
-    }
-
-    visibility: {
-        if (SystemProperties.hasDesktopEnvironment) {
-            if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_WINDOWED) return "Windowed"
-            else if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_MAXIMIZED) return "Maximized"
-            else if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_FULLSCREEN) return "FullScreen"
-        } else {
-            return "FullScreen"
-        }
-    }
-  
-    property bool initialized: false
+    
     StackView {
         id: stackView
         initialItem: initialView
-        anchors.fill: parent
-        focus: true
+        session: Session
 
-        onCurrentItemChanged: {
-            // Ensure focus travels to the next view when going back
-            if (currentItem) {
-                currentItem.forceActiveFocus()
-            }
+        onActivated: {
+
         }
 
-        Keys.onEscapePressed: {
-            if (depth > 1) {
-                goBack()
-            }
-            else {
-                quitConfirmationDialog.open()
-            }
-        }
 
-        Keys.onBackPressed: {
-            if (depth > 1) {
-                goBack()
-            }
-            else {
-                quitConfirmationDialog.open()
-            }
-        }
-
-        Keys.onMenuPressed: {
-            settingsButton.clicked()
-        }
-
-        // This is a keypress we've reserved for letting the
-        // SdlGamepadKeyNavigation object tell us to show settings
-        // when Menu is consumed by a focused control.
-        Keys.onHangupPressed: {
-            settingsButton.clicked()
-        }
     }
 
 }
