@@ -166,7 +166,6 @@ SOURCES += \
     path.cpp \
     settings/streamingpreferences.cpp \
     settings/mappingmanager.cpp \
-    streaming/nvaddress.cpp \
     streaming/input/abstouch.cpp \
     streaming/input/gamepad.cpp \
     streaming/input/input.cpp \
@@ -185,7 +184,6 @@ HEADERS += \
     utils.h \
     settings/streamingpreferences.h \
     settings/mappingmanager.h \
-    streaming/nvaddress.h \
     streaming/input/input.h \
     streaming/session.h \
     streaming/audio/renderers/renderer.h \

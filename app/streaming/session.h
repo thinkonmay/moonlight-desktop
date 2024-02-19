@@ -5,55 +5,23 @@
 #include <Limelight.h>
 #include <opus_multistream.h>
 #include "settings/streamingpreferences.h"
-#include "nvaddress.h"
 #include "input/input.h"
 #include "video/decoder.h"
 #include "audio/renderers/renderer.h"
 #include "video/overlaymanager.h"
 
 
-class NvDisplayMode
-{
-public:
-    bool operator==(const NvDisplayMode& other) const
-    {
-        return width == other.width &&
-                height == other.height &&
-                refreshRate == other.refreshRate;
-    }
-
-    int width;
-    int height;
-    int refreshRate;
-};
 
 class NvComputer
 {
 public:
     // Ephemeral traits
-    NvAddress activeAddress;
-    QVector<NvDisplayMode> displayModes;
-
-    uint16_t activeHttpsPort;
-    int currentGameId;
+    QString rtspUrl;
+    QString activeAddress;
     QString gfeVersion;
     QString appVersion;
     int maxLumaPixelsHEVC;
     int serverCodecModeSupport;
-    QString gpuModel;
-    bool isSupportedServerVersion;
-
-    // Persisted traits
-    NvAddress localAddress;
-    NvAddress remoteAddress;
-    NvAddress ipv6Address;
-    NvAddress manualAddress;
-    QByteArray macAddress;
-    QString name;
-    bool hasCustomName;
-    QString uuid;
-    bool isNvidiaServerSoftware;
-    // Remember to update isEqualSerialized() when adding fields here!
 };
 
 

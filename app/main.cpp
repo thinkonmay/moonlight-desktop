@@ -507,7 +507,17 @@ int main(int argc, char *argv[])
 
     
     StreamingPreferences* preferences = new StreamingPreferences(&app);
-    auto session = new Session(new NvComputer(),preferences);
+    auto computer = new NvComputer();
+    computer->appVersion = "7.1.431.-1";
+    computer->gfeVersion = "3.23.0.74";
+    computer->rtspUrl = "rtsp://localhost:48010";
+    computer->activeAddress = "localhost";
+    computer->maxLumaPixelsHEVC = 0; // TEMP disable
+
+    int codec_mode_flags = SCM_H264;
+    codec_mode_flags |= SCM_HEVC;
+    computer->serverCodecModeSupport = codec_mode_flags;
+    auto session = new Session(computer,preferences);
     session->exec(0,0);
     int err = app.exec();
 

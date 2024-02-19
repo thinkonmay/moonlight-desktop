@@ -589,7 +589,6 @@ bool Session::initialize()
         }
     }
 
-    qInfo() << "Server GPU:" << m_Computer->gpuModel;
     qInfo() << "Server GFE version:" << m_Computer->gfeVersion;
 
     LiInitializeVideoCallbacks(&m_VideoCallbacks);
@@ -805,11 +804,6 @@ void Session::emitLaunchWarning(QString text)
 
 bool Session::validateLaunch(SDL_Window* testWindow)
 {
-    if (!m_Computer->isSupportedServerVersion) {
-        emit displayLaunchError(tr("The version of GeForce Experience on %1 is not supported by this build of Moonlight. You must update Moonlight to stream from %1.").arg(m_Computer->name));
-        return false;
-    }
-
     if (m_Preferences->videoDecoderSelection == StreamingPreferences::VDS_FORCE_SOFTWARE) {
         if (m_Preferences->enableHdr) {
             emitLaunchWarning(tr("HDR is not supported with software decoding."));
@@ -977,24 +971,6 @@ bool Session::validateLaunch(SDL_Window* testWindow)
         emitLaunchWarning(tr("An attached gamepad has no mapping and won't be usable. Visit the Moonlight help to resolve this."));
     }
 
-    // NVENC will fail to initialize when any dimension exceeds 4096 using:
-    // - H.264 on all versions of NVENC
-    // - HEVC prior to Pascal
-    //
-    // However, if we aren't using Nvidia hosting software, don't assume anything about
-    // encoding capabilities by using HEVC Main 10 support. It will likely be wrong.
-    if ((m_StreamConfig.width > 4096 || m_StreamConfig.height > 4096) && m_Computer->isNvidiaServerSoftware) {
-        // Pascal added support for 8K HEVC encoding support. Maxwell 2 could encode HEVC but only up to 4K.
-        // We can't directly identify Pascal, but we can look for HEVC Main10 which was added in the same generation.
-        if (m_Computer->maxLumaPixelsHEVC == 0 || !(m_Computer->serverCodecModeSupport & SCM_HEVC_MAIN10)) {
-            emit displayLaunchError(tr("Your host PC's GPU doesn't support streaming video resolutions over 4K."));
-            return false;
-        }
-        else if ((m_StreamConfig.supportedVideoFormats & ~VIDEO_FORMAT_MASK_H264) == 0) {
-            emit displayLaunchError(tr("Video resolutions over 4K are not supported by the H.264 codec."));
-            return false;
-        }
-    }
 
     if (m_Preferences->videoDecoderSelection == StreamingPreferences::VDS_FORCE_HARDWARE &&
             !(m_StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_10BIT) && // HDR was already checked for hardware decode support above
@@ -1307,45 +1283,12 @@ bool Session::startConnectionAsync()
     // have time to read any messages present on the segue
     SDL_Delay(1500);
 
-    bool enableGameOptimizations;
-    if (m_Computer->isNvidiaServerSoftware) {
-        // GFE will set all settings to 720p60 if it doesn't recognize
-        // the chosen resolution. Avoid that by disabling SOPS when it
-        // is not streaming a supported resolution.
-        enableGameOptimizations = false;
-        for (const NvDisplayMode &mode : m_Computer->displayModes) {
-            if (mode.width == m_StreamConfig.width &&
-                    mode.height == m_StreamConfig.height) {
-                SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
-                            "Found host supported resolution: %dx%d",
-                            mode.width, mode.height);
-                enableGameOptimizations = m_Preferences->gameOptimizations;
-                break;
-            }
-        }
-    }
-    else {
-        // Always send SOPS to Sunshine because we may repurpose the
-        // option to control whether the display mode is adjusted
-        enableGameOptimizations = m_Preferences->gameOptimizations;
-    }
 
-    QString rtspSessionUrl;
-
-    // NvHTTP http(m_Computer);
-    // http.startApp(m_Computer->currentGameId != 0 ? "resume" : "launch",
-    //               m_Computer->isNvidiaServerSoftware,
-    //               m_App.id, &m_StreamConfig,
-    //               enableGameOptimizations,
-    //               m_Preferences->playAudioOnHost,
-    //               m_InputHandler->getAttachedGamepadMask(),
-    //               !m_Preferences->multiController,
-    //               rtspSessionUrl);
-
-    QByteArray hostnameStr = m_Computer->activeAddress.address().toLatin1();
+    QByteArray hostnameStr = m_Computer->activeAddress.toLatin1();
     QByteArray siAppVersion = m_Computer->appVersion.toLatin1();
 
     SERVER_INFORMATION hostInfo;
+    hostInfo.rtspSessionUrl = m_Computer->rtspUrl.toLatin1().data();
     hostInfo.address = hostnameStr.data();
     hostInfo.serverInfoAppVersion = siAppVersion.data();
     hostInfo.serverCodecModeSupport = m_Computer->serverCodecModeSupport;
@@ -1357,13 +1300,6 @@ bool Session::startConnectionAsync()
     }
     if (!siGfeVersion.isEmpty()) {
         hostInfo.serverInfoGfeVersion = siGfeVersion.data();
-    }
-
-    // Older GFE and Sunshine versions didn't have this field
-    QByteArray rtspSessionUrlStr;
-    if (!rtspSessionUrl.isEmpty()) {
-        rtspSessionUrlStr = rtspSessionUrl.toLatin1();
-        hostInfo.rtspSessionUrl = rtspSessionUrlStr.data();
     }
 
     if (m_Preferences->packetSize != 0) {
@@ -1378,27 +1314,7 @@ bool Session::startConnectionAsync()
     else {
         // Use 1392 byte video packets by default
         m_StreamConfig.packetSize = 1392;
-
-        // TODO
-        // // getActiveAddressReachability() does network I/O, so we only attempt to check
-        // // reachability if we've already contacted the PC successfully.
-        // switch (m_Computer->getActiveAddressReachability()) {
-        // case NvComputer::RI_LAN:
-        //     // This address is on-link, so treat it as a local address
-        //     // even if it's not in RFC 1918 space or it's an IPv6 address.
-        //     m_StreamConfig.streamingRemotely = STREAM_CFG_LOCAL;
-        //     break;
-        // case NvComputer::RI_VPN:
-        //     // It looks like our route to this PC is over a VPN, so cap at 1024 bytes.
-        //     // Treat it as remote even if the target address is in RFC 1918 address space.
-        //     m_StreamConfig.streamingRemotely = STREAM_CFG_REMOTE;
-        //     m_StreamConfig.packetSize = 1024;
-        //     break;
-        // default:
-        //     // If we don't have reachability info, let moonlight-common-c decide.
-        //     m_StreamConfig.streamingRemotely = STREAM_CFG_AUTO;
-        //     break;
-        // }
+        m_StreamConfig.streamingRemotely = STREAM_CFG_AUTO;
     }
 
     int err = LiStartConnection(&hostInfo, &m_StreamConfig, &k_ConnCallbacks,
@@ -1572,9 +1488,9 @@ void Session::execInternal()
     // We use only the computer name on macOS to match Apple conventions where the
     // app name is featured in the menu bar and the document name is in the title bar.
 #ifdef Q_OS_DARWIN
-    std::string windowName = QString(m_Computer->name).toStdString();
+    std::string windowName = QString("Moonlight").toStdString();
 #else
-    std::string windowName = QString(m_Computer->name + " - Moonlight").toStdString();
+    std::string windowName = QString("Moonlight").toStdString();
 #endif
 
     m_Window = SDL_CreateWindow(windowName.c_str(),
