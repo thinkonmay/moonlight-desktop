@@ -47,9 +47,5 @@ pushd $BUILD_FOLDER
 make install || fail "Make install failed!"
 popd
 
-echo Creating AppImage
-pushd $INSTALLER_FOLDER
-VERSION=$VERSION linuxdeployqt $DEPLOY_FOLDER/usr/share/applications/com.moonlight_stream.Moonlight.desktop -qmldir=$SOURCE_ROOT/app/gui -appimage || fail "linuxdeployqt failed!"
-popd
 
 echo Build successful

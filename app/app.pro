@@ -163,9 +163,10 @@ macx {
 
 SOURCES += \
     main.cpp \
-    backend/nvaddress.cpp \
-    settings/mappingfetcher.cpp \
+    path.cpp \
     settings/streamingpreferences.cpp \
+    settings/mappingmanager.cpp \
+    streaming/nvaddress.cpp \
     streaming/input/abstouch.cpp \
     streaming/input/gamepad.cpp \
     streaming/input/input.cpp \
@@ -176,29 +177,22 @@ SOURCES += \
     streaming/audio/audio.cpp \
     streaming/audio/renderers/sdlaud.cpp \
     streaming/streamutils.cpp \
-    path.cpp \
-    settings/mappingmanager.cpp \
-    gui/sdlgamepadkeynavigation.cpp \
     streaming/video/overlaymanager.cpp \
-    backend/systemproperties.cpp \
     wm.cpp
 
 HEADERS += \
-    backend/nvaddress.h \
-    settings/mappingfetcher.h \
+    path.h \
     utils.h \
     settings/streamingpreferences.h \
+    settings/mappingmanager.h \
+    streaming/nvaddress.h \
     streaming/input/input.h \
     streaming/session.h \
     streaming/audio/renderers/renderer.h \
     streaming/audio/renderers/sdl.h \
     streaming/video/decoder.h \
     streaming/streamutils.h \
-    path.h \
-    settings/mappingmanager.h \
-    gui/sdlgamepadkeynavigation.h \
     streaming/video/overlaymanager.h \
-    backend/systemproperties.h
 
 # Platform-specific renderers and decoders
 ffmpeg {

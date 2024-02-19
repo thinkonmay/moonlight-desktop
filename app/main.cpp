@@ -36,10 +36,8 @@
 
 #include "path.h"
 #include "utils.h"
-#include "backend/systemproperties.h"
 #include "streaming/session.h"
 #include "settings/streamingpreferences.h"
-#include "gui/sdlgamepadkeynavigation.h"
 
 #define USE_CUSTOM_LOGGER
 
