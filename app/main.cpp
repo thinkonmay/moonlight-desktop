@@ -16,6 +16,7 @@
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QFile>
+#include <PlatformThreads.h>
 
 // Don't let SDL hook our main function, since Qt is already
 // doing the same thing. This needs to be before any headers
@@ -40,59 +41,18 @@
 #include "settings/streamingpreferences.h"
 #include "gui/sdlgamepadkeynavigation.h"
 
-#if !defined(QT_DEBUG) && defined(Q_OS_WIN32)
-// Log to file for release Windows builds
 #define USE_CUSTOM_LOGGER
-#define LOG_TO_FILE
-#elif defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
-// Use stdout logger on all Linux/BSD builds
-#define USE_CUSTOM_LOGGER
-#elif !defined(QT_DEBUG) && defined(Q_OS_DARWIN)
-// Log to file for release Mac builds
-#define USE_CUSTOM_LOGGER
-#define LOG_TO_FILE
-#else
-// For debug Windows and Mac builds, use default logger
-#endif
 
 #ifdef USE_CUSTOM_LOGGER
 static QElapsedTimer s_LoggerTime;
 static QTextStream s_LoggerStream(stdout);
 static QMutex s_LoggerLock;
-static bool s_SuppressVerboseOutput;
-#ifdef LOG_TO_FILE
-// Max log file size of 10 MB
-#define MAX_LOG_SIZE_BYTES (10 * 1024 * 1024)
-static int s_LogBytesWritten = 0;
-static bool s_LogLimitReached = false;
-static QFile* s_LoggerFile;
-#endif
 
 void logToLoggerStream(QString& message)
 {
-    QMutexLocker lock(&s_LoggerLock);
-
-#ifdef LOG_TO_FILE
-    if (s_LogLimitReached) {
-        return;
-    }
-    else if (s_LogBytesWritten >= MAX_LOG_SIZE_BYTES) {
-        s_LoggerStream << "Log size limit reached!";
-#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
-        s_LoggerStream << Qt::endl;
-#else
-        s_LoggerStream << endl;
-#endif
-        s_LogLimitReached = true;
-        return;
-    }
-    else {
-        s_LogBytesWritten += message.size();
-    }
-#endif
-
-    s_LoggerStream << message;
-    s_LoggerStream.flush();
+    QByteArray ba = message.toLocal8Bit();  
+    const char *c_str2 = ba.data();  
+    printf("%s", c_str2);
 }
 
 void sdlLogToDiskHandler(void*, int category, SDL_LogPriority priority, const char* message)
@@ -101,27 +61,15 @@ void sdlLogToDiskHandler(void*, int category, SDL_LogPriority priority, const ch
 
     switch (priority) {
     case SDL_LOG_PRIORITY_VERBOSE:
-        if (s_SuppressVerboseOutput) {
-            return;
-        }
         priorityTxt = "Verbose";
         break;
     case SDL_LOG_PRIORITY_DEBUG:
-        if (s_SuppressVerboseOutput) {
-            return;
-        }
         priorityTxt = "Debug";
         break;
     case SDL_LOG_PRIORITY_INFO:
-        if (s_SuppressVerboseOutput) {
-            return;
-        }
         priorityTxt = "Info";
         break;
     case SDL_LOG_PRIORITY_WARN:
-        if (s_SuppressVerboseOutput) {
-            return;
-        }
         priorityTxt = "Warn";
         break;
     case SDL_LOG_PRIORITY_ERROR:
@@ -147,21 +95,12 @@ void qtLogToDiskHandler(QtMsgType type, const QMessageLogContext&, const QString
 
     switch (type) {
     case QtDebugMsg:
-        if (s_SuppressVerboseOutput) {
-            return;
-        }
         typeTxt = "Debug";
         break;
     case QtInfoMsg:
-        if (s_SuppressVerboseOutput) {
-            return;
-        }
         typeTxt = "Info";
         break;
     case QtWarningMsg:
-        if (s_SuppressVerboseOutput) {
-            return;
-        }
         typeTxt = "Warning";
         break;
     case QtCriticalMsg:
@@ -186,9 +125,6 @@ void ffmpegLogToDiskHandler(void* ptr, int level, const char* fmt, va_list vl)
     static int printPrefix = 1;
 
     if ((level & 0xFF) > av_log_get_level()) {
-        return;
-    }
-    else if ((level & 0xFF) > AV_LOG_WARNING && s_SuppressVerboseOutput) {
         return;
     }
 
@@ -303,15 +239,6 @@ int main(int argc, char *argv[])
     }
 
 #ifdef USE_CUSTOM_LOGGER
-#ifdef LOG_TO_FILE
-    QDir tempDir(Path::getLogDir());
-    s_LoggerFile = new QFile(tempDir.filePath(QString("Moonlight-%1.log").arg(QDateTime::currentSecsSinceEpoch())));
-    if (s_LoggerFile->open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream(stderr) << "Redirecting log output to " << s_LoggerFile->fileName() << Qt::endl;
-        s_LoggerStream.setDevice(s_LoggerFile);
-    }
-#endif
-
     s_LoggerTime.start();
     qInstallMessageHandler(qtLogToDiskHandler);
     SDL_LogSetOutputFunction(sdlLogToDiskHandler, nullptr);
@@ -327,14 +254,6 @@ int main(int argc, char *argv[])
     SetUnhandledExceptionFilter(UnhandledExceptionHandler);
 #endif
 
-#ifdef LOG_TO_FILE
-    // Prune the oldest existing logs if there are more than 10
-    QStringList existingLogNames = tempDir.entryList(QStringList("Moonlight-*.log"), QDir::NoFilter, QDir::SortFlag::Time);
-    for (int i = 10; i < existingLogNames.size(); i++) {
-        qInfo() << "Removing old log file:" << existingLogNames.at(i);
-        QFile(tempDir.filePath(existingLogNames.at(i))).remove();
-    }
-#endif
 
 #if defined(Q_OS_WIN32)
     // Force AntiHooking.dll to be statically imported and loaded
@@ -503,6 +422,22 @@ int main(int argc, char *argv[])
 #endif
 
     QGuiApplication app(argc, argv);
+#ifdef Q_OS_WIN32
+    // Attach to the console to be able to print output.
+    // Since we're a /SUBSYSTEM:WINDOWS app, we won't be attached by default.
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        HANDLE conOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (conOut != INVALID_HANDLE_VALUE && conOut != NULL) {
+            freopen("CONOUT$", "w", stdout);
+            setvbuf(stdout, NULL, _IONBF, 0);
+        }
+        HANDLE conErr = GetStdHandle(STD_ERROR_HANDLE);
+        if (conErr != INVALID_HANDLE_VALUE && conErr != NULL) {
+            freopen("CONOUT$", "w", stderr);
+            setvbuf(stderr, NULL, _IONBF, 0);
+        }
+    }
+#endif
 
     SDL_version compileVersion;
     SDL_VERSION(&compileVersion);
@@ -516,16 +451,7 @@ int main(int argc, char *argv[])
                 "Running with SDL %d.%d.%d",
                 runtimeVersion.major, runtimeVersion.minor, runtimeVersion.patch);
 
-    // Apply the initial translation based on user preference
-    StreamingPreferences prefs;
-    prefs.retranslate();
 
-    // Trickily declare the translation for dialog buttons
-    QCoreApplication::translate("QPlatformTheme", "&Yes");
-    QCoreApplication::translate("QPlatformTheme", "&No");
-    QCoreApplication::translate("QPlatformTheme", "OK");
-    QCoreApplication::translate("QPlatformTheme", "Help");
-    QCoreApplication::translate("QPlatformTheme", "Cancel");
 
     // After the QGuiApplication is created, the platform stuff will be initialized
     // and we can set the SDL video driver to match Qt.
@@ -577,54 +503,10 @@ int main(int argc, char *argv[])
     qputenv("SDL_VIDEO_WAYLAND_WMCLASS", "com.moonlight_stream.Moonlight");
     qputenv("SDL_VIDEO_X11_WMCLASS", "com.moonlight_stream.Moonlight");
 
-    // Register our C++ types for QML
-    qmlRegisterUncreatableType<Session>("Session", 1, 0, "Session", "Session cannot be created from QML");
-    qmlRegisterSingletonType<SystemProperties>("SystemProperties", 1, 0,
-                                               "SystemProperties",
-                                               [](QQmlEngine*, QJSEngine*) -> QObject* {
-                                                   return new SystemProperties();
-                                               });
-    qmlRegisterSingletonType<SdlGamepadKeyNavigation>("SdlGamepadKeyNavigation", 1, 0,
-                                                      "SdlGamepadKeyNavigation",
-                                                      [](QQmlEngine*, QJSEngine*) -> QObject* {
-                                                          return new SdlGamepadKeyNavigation();
-                                                      });
-    qmlRegisterSingletonType<StreamingPreferences>("StreamingPreferences", 1, 0,
-                                                   "StreamingPreferences",
-                                                   [](QQmlEngine* qmlEngine, QJSEngine*) -> QObject* {
-                                                       return new StreamingPreferences(qmlEngine);
-                                                   });
-
-    // We require the Material theme
-    QQuickStyle::setStyle("Material");
-
-    // Our icons are styled for a dark theme, so we do not allow the user to override this
-    qputenv("QT_QUICK_CONTROLS_MATERIAL_THEME", "Dark");
-
-    // These are defaults that we allow the user to override
-    if (!qEnvironmentVariableIsSet("QT_QUICK_CONTROLS_MATERIAL_ACCENT")) {
-        qputenv("QT_QUICK_CONTROLS_MATERIAL_ACCENT", "Purple");
-    }
-    if (!qEnvironmentVariableIsSet("QT_QUICK_CONTROLS_MATERIAL_VARIANT")) {
-        qputenv("QT_QUICK_CONTROLS_MATERIAL_VARIANT", "Dense");
-    }
-
-    QQmlApplicationEngine engine;
-    QString initialView = "qrc:/gui/StreamSegue.qml";
-    engine.rootContext()->setContextProperty("initialView", initialView);
-
-
-    
     
     StreamingPreferences* preferences = new StreamingPreferences(&app);
     auto session = new Session(new NvComputer(),preferences);
-
-    engine.rootContext()->setContextProperty("session", session);
-
-    // Load the main.qml file
-    engine.load(QUrl(QStringLiteral("qrc:/gui/main.qml")));
-    if (engine.rootObjects().isEmpty())
-        return -1;
+    session->exec(0,0);
     int err = app.exec();
 
     // Give worker tasks time to properly exit. Fixes PendingQuitTask

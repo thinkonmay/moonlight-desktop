@@ -1,6 +1,2 @@
 <RCC>
-    <qresource prefix="/">
-        <file>gui/main.qml</file>
-        <file>gui/StreamSegue.qml</file>
-    </qresource>
 </RCC>
