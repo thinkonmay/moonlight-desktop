@@ -204,6 +204,10 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
 
 #endif
 
+
+#ifdef _WIN32  
+#pragma comment(linker, "/SUBSYSTEM:console")
+#endif
 int main(int argc, char *argv[])
 {
     SDL_SetMainReady();
