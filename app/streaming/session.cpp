@@ -617,11 +617,9 @@ bool Session::initialize()
                 "Video bitrate: %d kbps",
                 m_StreamConfig.bitrate);
 
-    RAND_bytes(reinterpret_cast<unsigned char*>(m_StreamConfig.remoteInputAesKey),
-               sizeof(m_StreamConfig.remoteInputAesKey));
 
-    // Only the first 4 bytes are populated in the RI key IV
-    RAND_bytes(reinterpret_cast<unsigned char*>(m_StreamConfig.remoteInputAesIv), 4);
+    memset(m_StreamConfig.remoteInputAesIv,0,sizeof(m_StreamConfig.remoteInputAesIv));
+    memset(m_StreamConfig.remoteInputAesKey,0,sizeof(m_StreamConfig.remoteInputAesKey));
 
     switch (m_Preferences->audioConfig)
     {
