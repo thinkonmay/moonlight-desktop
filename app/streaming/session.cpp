@@ -562,6 +562,56 @@ Session::Session(NvComputer* computer, StreamingPreferences *preferences)
 {
 }
 
+
+void Session::parseKey(const std::string_view &hex, char* str,int size) {
+    std::uint8_t buf[16] = {0};
+
+    static char constexpr shift_bit = 'a' - 'A';
+
+    auto is_convertable = [](char ch) -> bool {
+      if (isdigit(ch)) {
+        return true;
+      }
+
+      ch |= shift_bit;
+
+      if ('a' > ch || ch > 'z') {
+        return false;
+      }
+
+      return true;
+    };
+
+    auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
+    auto padding = size - buf_size;
+
+    const char *data = hex.data() + hex.size() - 1;
+
+    auto convert = [](char ch) -> std::uint8_t {
+      if (ch >= '0' && ch <= '9') {
+        return (std::uint8_t) ch - '0';
+      }
+
+      return (std::uint8_t)(ch | (char) 32) - 'a' + (char) 10;
+    };
+
+    std::fill_n(buf + buf_size, padding, 0);
+
+    std::for_each_n(buf, buf_size, [&](auto &el) {
+      while (!is_convertable(*data)) { --data; }
+      std::uint8_t ch_r = convert(*data--);
+
+      while (!is_convertable(*data)) { --data; }
+      std::uint8_t ch_l = convert(*data--);
+
+      el = (ch_l << 4) | ch_r;
+    });
+
+
+    std::reverse(std::begin(buf), std::end(buf));
+    memcpy(str,buf,size);
+}
+
 bool Session::initialize()
 {
     if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
@@ -618,8 +668,8 @@ bool Session::initialize()
                 m_StreamConfig.bitrate);
 
 
-    memset(m_StreamConfig.remoteInputAesIv,0,sizeof(m_StreamConfig.remoteInputAesIv));
-    memset(m_StreamConfig.remoteInputAesKey,0,sizeof(m_StreamConfig.remoteInputAesKey));
+    parseKey(m_Computer->username,m_StreamConfig.remoteInputAesKey,16);
+    parseKey(m_Computer->password,m_StreamConfig.remoteInputAesKey,16);
 
     switch (m_Preferences->audioConfig)
     {

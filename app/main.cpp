@@ -204,6 +204,34 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
 
 #endif
 
+int
+parse(NvComputer* computer, int argc, char *argv[]) {
+    std::unordered_map<std::string, std::string> cmd_vars;
+
+    for (auto x = 1; x < argc; ++x) {
+        auto line = argv[x];
+
+        if (*line == '-') {
+        if (*(line + 1) == '-') {
+            char* command = line + 2;
+
+            if(strcmp(command, "username") == 0) 
+                computer->username = std::string((char*)argv[x + 1]);
+            else if(strcmp(command, "password") == 0) 
+                computer->password = std::string((char*)argv[x + 1]);
+            else if(strcmp(command, "url") == 0)  {
+                computer->rtspUrl = "rtsp://" + QString((char*)argv[x + 1]) + ":48010";
+                computer->activeAddress = QString((char*)argv[x + 1]);
+
+            }
+
+        }
+        }
+    }
+
+
+    return 0;
+}
 
 #ifdef _WIN32  
 #pragma comment(linker, "/SUBSYSTEM:console")
@@ -510,13 +538,11 @@ int main(int argc, char *argv[])
     auto computer = new NvComputer();
     computer->appVersion = "7.1.431.-1";
     computer->gfeVersion = "3.23.0.74";
-    computer->rtspUrl = "rtsp://localhost:48010";
-    computer->activeAddress = "localhost";
     computer->maxLumaPixelsHEVC = 0; // TEMP disable
+    computer->serverCodecModeSupport = SCM_H264 | SCM_HEVC;
 
-    int codec_mode_flags = SCM_H264;
-    codec_mode_flags |= SCM_HEVC;
-    computer->serverCodecModeSupport = codec_mode_flags;
+
+    parse(computer,argc,argv);
     auto session = new Session(computer,preferences);
     session->exec(0,0);
     int err = app.exec();

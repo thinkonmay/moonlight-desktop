@@ -20,6 +20,9 @@ public:
     QString activeAddress;
     QString gfeVersion;
     QString appVersion;
+    std::string username;
+    std::string password;
+
     int maxLumaPixelsHEVC;
     int serverCodecModeSupport;
 };
@@ -82,6 +85,8 @@ private:
     void execInternal();
 
     bool initialize();
+
+    void parseKey(const std::string_view &hex, char* str,int size) {
 
     bool startConnectionAsync();
 
