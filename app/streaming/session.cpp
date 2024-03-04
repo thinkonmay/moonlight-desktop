@@ -669,7 +669,7 @@ bool Session::initialize()
 
 
     parseKey(m_Computer->username,m_StreamConfig.remoteInputAesKey,16);
-    parseKey(m_Computer->password,m_StreamConfig.remoteInputAesKey,16);
+    parseKey(m_Computer->password,m_StreamConfig.remoteInputAesIv,16);
 
     switch (m_Preferences->audioConfig)
     {
