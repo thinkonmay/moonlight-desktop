@@ -86,7 +86,7 @@ private:
 
     bool initialize();
 
-    void parseKey(const std::string_view &hex, char* str,int size) {
+    void parseKey(const std::string_view &hex, char* str,int size);
 
     bool startConnectionAsync();
 
