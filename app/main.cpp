@@ -205,8 +205,11 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
 #endif
 
 int
-parse(NvComputer* computer, int argc, char *argv[]) {
+parse(NvComputer* computer, Session* session, int argc, char *argv[]) {
     std::unordered_map<std::string, std::string> cmd_vars;
+
+    int b = 0;
+    QString port,address,bitrate,width,height;
 
     for (auto x = 1; x < argc; ++x) {
         auto line = argv[x];
@@ -219,17 +222,29 @@ parse(NvComputer* computer, int argc, char *argv[]) {
                 computer->username = std::string((char*)argv[x + 1]);
             else if(strcmp(command, "password") == 0) 
                 computer->password = std::string((char*)argv[x + 1]);
-            else if(strcmp(command, "url") == 0)  {
-                computer->rtspUrl = "rtsp://" + QString((char*)argv[x + 1]) + ":48010";
-                computer->activeAddress = QString((char*)argv[x + 1]);
-
-            }
-
+            else if(strcmp(command, "bitrate") == 0)  
+                bitrate = QString((char*)argv[x + 1]);
+            else if(strcmp(command, "width") == 0)  
+                width = QString((char*)argv[x + 1]);
+            else if(strcmp(command, "height") == 0)  
+                height = QString((char*)argv[x + 1]);
+            else if(strcmp(command, "address") == 0)  
+                address = QString((char*)argv[x + 1]);
+            else if(strcmp(command, "port") == 0)  
+                port = QString((char*)argv[x + 1]);
         }
         }
     }
 
 
+    computer->rtspUrl = "rtsp://" + address + ":"+ port;
+    computer->activeAddress = address;
+    sscanf(bitrate.toLatin1().data(),"%d",&b);
+    session->m_Preferences->bitrateKbps = b;
+    sscanf(width.toLatin1().data(),"%d",&b);
+    session->m_Preferences->width = b;
+    sscanf(height.toLatin1().data(),"%d",&b);
+    session->m_Preferences->height = b;
     return 0;
 }
 
@@ -542,8 +557,8 @@ int main(int argc, char *argv[])
     computer->serverCodecModeSupport = SCM_H264 | SCM_HEVC;
 
 
-    parse(computer,argc,argv);
     auto session = new Session(computer,preferences);
+    parse(computer,session,argc,argv);
     session->exec(0,0);
     int err = app.exec();
 

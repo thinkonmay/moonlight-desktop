@@ -93,7 +93,7 @@ set SIGNTOOL_PARAMS=sign /tr http://timestamp.digicert.com /td sha256 /fd sha256
 set BUILD_ROOT=%cd%\build
 set SOURCE_ROOT=%cd%
 set BUILD_FOLDER=%BUILD_ROOT%\build-%ARCH%-%BUILD_CONFIG%
-set DEPLOY_FOLDER=%BUILD_ROOT%\deploy-%ARCH%-%BUILD_CONFIG%
+set DEPLOY_FOLDER=%BUILD_ROOT%\..\..\..\worker\package\moonlight
 set INSTALLER_FOLDER=%BUILD_ROOT%\installer-%ARCH%-%BUILD_CONFIG%
 set SYMBOLS_FOLDER=%BUILD_ROOT%\symbols-%ARCH%-%BUILD_CONFIG%
 set /p VERSION=<%SOURCE_ROOT%\app\version.txt
@@ -122,12 +122,10 @@ rem Find VC redistributable DLLs
 for /f "usebackq delims=" %%i in (`%VSWHERE% -latest -find VC\Redist\MSVC\*\%ARCH%\Microsoft.VC*.CRT`) do set VC_REDIST_DLL_PATH=%%i
 
 echo Cleaning output directories
-rmdir /s /q %DEPLOY_FOLDER%
 rmdir /s /q %BUILD_FOLDER%
 rmdir /s /q %INSTALLER_FOLDER%
 rmdir /s /q %SYMBOLS_FOLDER%
 mkdir %BUILD_ROOT%
-mkdir %DEPLOY_FOLDER%
 mkdir %BUILD_FOLDER%
 mkdir %INSTALLER_FOLDER%
 mkdir %SYMBOLS_FOLDER%
@@ -145,11 +143,6 @@ if !ERRORLEVEL! NEQ 0 goto Error
 popd
 
 echo Saving PDBs
-for /r "%BUILD_FOLDER%" %%f in (*.pdb) do (
-    copy "%%f" %SYMBOLS_FOLDER%
-    if !ERRORLEVEL! NEQ 0 goto Error
-)
-copy %SOURCE_ROOT%\libs\windows\lib\%ARCH%\*.pdb %SYMBOLS_FOLDER%
 if !ERRORLEVEL! NEQ 0 goto Error
 7z a %SYMBOLS_FOLDER%\MoonlightDebuggingSymbols-%ARCH%-%VERSION%.zip %SYMBOLS_FOLDER%\*.pdb
 if !ERRORLEVEL! NEQ 0 goto Error
@@ -165,74 +158,11 @@ if "%ML_SYMBOL_STORE%" NEQ "" (
     )
 )
 
-if "%ML_SYMBOL_ARCHIVE%" NEQ "" (
-    echo Copying PDB ZIP to symbol archive: %ML_SYMBOL_ARCHIVE%
-    copy %SYMBOLS_FOLDER%\MoonlightDebuggingSymbols-%ARCH%-%VERSION%.zip %ML_SYMBOL_ARCHIVE%
-    if !ERRORLEVEL! NEQ 0 goto Error
-) else (
-    if "%MUST_DEPLOY_SYMBOLS%"=="1" (
-        echo "A symbol archive directory must be specified in ML_SYMBOL_ARCHIVE for signed release builds"
-        exit /b 1
-    )
-)
-
-echo Copying DLL dependencies
-copy %SOURCE_ROOT%\libs\windows\lib\%ARCH%\*.dll %DEPLOY_FOLDER%
-if !ERRORLEVEL! NEQ 0 goto Error
-
-echo Copying AntiHooking.dll
-copy %BUILD_FOLDER%\AntiHooking\%BUILD_CONFIG%\AntiHooking.dll %DEPLOY_FOLDER%
-if !ERRORLEVEL! NEQ 0 goto Error
-
-echo Copying GC mapping list
-copy %SOURCE_ROOT%\app\SDL_GameControllerDB\gamecontrollerdb.txt %DEPLOY_FOLDER%
-if !ERRORLEVEL! NEQ 0 goto Error
-
-if not x%QT_PATH:\5.=%==x%QT_PATH% (
-    echo Copying qt.conf for Qt 5
-    copy %SOURCE_ROOT%\app\qt_qt5.conf %DEPLOY_FOLDER%\qt.conf
-    if !ERRORLEVEL! NEQ 0 goto Error
-
-    rem Qt 5.15
-    set WINDEPLOYQT_ARGS=--no-qmltooling --no-virtualkeyboard
-) else (
-    rem Qt 6.5
-    set WINDEPLOYQT_ARGS=--no-system-d3d-compiler --skip-plugin-types qmltooling,generic
-)
-
 echo Deploying Qt dependencies
-%WINDEPLOYQT_CMD% --dir %DEPLOY_FOLDER% --%BUILD_CONFIG% --no-opengl-sw --no-compiler-runtime --no-sql %WINDEPLOYQT_ARGS% %BUILD_FOLDER%\app\%BUILD_CONFIG%\Moonlight.exe
 if !ERRORLEVEL! NEQ 0 goto Error
 
 echo Deleting unused styles
 rem Qt 5.x directories
-rmdir /s /q %DEPLOY_FOLDER%\QtQuick\Controls.2\Fusion
-rmdir /s /q %DEPLOY_FOLDER%\QtQuick\Controls.2\Imagine
-rmdir /s /q %DEPLOY_FOLDER%\QtQuick\Controls.2\Universal
-rem Qt 6.5+ directories
-rmdir /s /q %DEPLOY_FOLDER%\qml\QtQuick\Controls\Fusion
-rmdir /s /q %DEPLOY_FOLDER%\qml\QtQuick\Controls\Imagine
-rmdir /s /q %DEPLOY_FOLDER%\qml\QtQuick\Controls\Universal
-rmdir /s /q %DEPLOY_FOLDER%\qml\QtQuick\Controls\Windows
-rmdir /s /q %DEPLOY_FOLDER%\qml\QtQuick\NativeStyle
-
-if "%SIGN%"=="1" (
-    echo Signing deployed binaries
-    set FILES_TO_SIGN=%BUILD_FOLDER%\app\%BUILD_CONFIG%\Moonlight.exe
-    for /r "%DEPLOY_FOLDER%" %%f in (*.dll *.exe) do (
-        set FILES_TO_SIGN=!FILES_TO_SIGN! %%f
-    )
-    signtool %SIGNTOOL_PARAMS% !FILES_TO_SIGN!
-    if !ERRORLEVEL! NEQ 0 goto Error
-)
-
-if "%ML_SYMBOL_STORE%" NEQ "" (
-    echo Publishing binaries to symbol store: %ML_SYMBOL_STORE%
-    symstore add /r /f %DEPLOY_FOLDER%\*.* /s %ML_SYMBOL_STORE% /t Moonlight
-    if !ERRORLEVEL! NEQ 0 goto Error
-    symstore add /r /f %BUILD_FOLDER%\app\%BUILD_CONFIG%\Moonlight.exe /s %ML_SYMBOL_STORE% /t Moonlight
-    if !ERRORLEVEL! NEQ 0 goto Error
-)
 
 @REM echo Building MSI
 @REM msbuild -Restore %SOURCE_ROOT%\wix\Moonlight\Moonlight.wixproj /p:Configuration=%BUILD_CONFIG% /p:Platform=%ARCH%
@@ -241,17 +171,6 @@ if "%ML_SYMBOL_STORE%" NEQ "" (
 echo Copying application binary to deployment directory
 copy %BUILD_FOLDER%\app\%BUILD_CONFIG%\Moonlight.exe %DEPLOY_FOLDER%
 if !ERRORLEVEL! NEQ 0 goto Error
-
-@REM echo Building portable package
-@REM rem This must be done after WiX harvesting and signing, since the VCRT dlls are MS signed
-@REM rem and should not be harvested for inclusion in the full installer
-@REM copy "%VC_REDIST_DLL_PATH%\*.dll" %DEPLOY_FOLDER%
-@REM if !ERRORLEVEL! NEQ 0 goto Error
-@REM rem This file tells Moonlight that it's a portable installation
-@REM echo. > %DEPLOY_FOLDER%\portable.dat
-@REM if !ERRORLEVEL! NEQ 0 goto Error
-@REM 7z a %INSTALLER_FOLDER%\MoonlightPortable-%ARCH%-%VERSION%.zip %DEPLOY_FOLDER%\*
-@REM if !ERRORLEVEL! NEQ 0 goto Error
 
 echo Build successful for Moonlight v%VERSION% %ARCH% binaries!
 exit /b 0

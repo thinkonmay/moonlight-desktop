@@ -63,6 +63,8 @@ public:
 
     void flushWindowEvents();
 
+    StreamingPreferences* m_Preferences;
+    NvComputer* m_Computer;
 signals:
     void stageStarting(QString stage);
 
@@ -173,12 +175,10 @@ private:
     static
     int drSubmitDecodeUnit(PDECODE_UNIT du);
 
-    StreamingPreferences* m_Preferences;
     bool m_IsFullScreen;
     STREAM_CONFIGURATION m_StreamConfig;
     DECODER_RENDERER_CALLBACKS m_VideoCallbacks;
     AUDIO_RENDERER_CALLBACKS m_AudioCallbacks;
-    NvComputer* m_Computer;
     SDL_Window* m_Window;
     IVideoDecoder* m_VideoDecoder;
     SDL_SpinLock m_DecoderLock;
