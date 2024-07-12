@@ -94,8 +94,6 @@ set BUILD_ROOT=%cd%\build
 set SOURCE_ROOT=%cd%
 set BUILD_FOLDER=%BUILD_ROOT%\build-%ARCH%-%BUILD_CONFIG%
 set DEPLOY_FOLDER=%BUILD_ROOT%\..\..\..\binary\moonlight
-set INSTALLER_FOLDER=%BUILD_ROOT%\installer-%ARCH%-%BUILD_CONFIG%
-set SYMBOLS_FOLDER=%BUILD_ROOT%\symbols-%ARCH%-%BUILD_CONFIG%
 set /p VERSION=<%SOURCE_ROOT%\app\version.txt
 
 rem Use the correct VC tools for the specified architecture
@@ -123,12 +121,8 @@ for /f "usebackq delims=" %%i in (`%VSWHERE% -latest -find VC\Redist\MSVC\*\%ARC
 
 echo Cleaning output directories
 rmdir /s /q %BUILD_FOLDER%
-rmdir /s /q %INSTALLER_FOLDER%
-rmdir /s /q %SYMBOLS_FOLDER%
 mkdir %BUILD_ROOT%
 mkdir %BUILD_FOLDER%
-mkdir %INSTALLER_FOLDER%
-mkdir %SYMBOLS_FOLDER%
 
 echo Configuring the project
 pushd %BUILD_FOLDER%
@@ -141,32 +135,6 @@ pushd %BUILD_FOLDER%
 %SOURCE_ROOT%\scripts\jom.exe %BUILD_CONFIG%
 if !ERRORLEVEL! NEQ 0 goto Error
 popd
-
-echo Saving PDBs
-if !ERRORLEVEL! NEQ 0 goto Error
-7z a %SYMBOLS_FOLDER%\MoonlightDebuggingSymbols-%ARCH%-%VERSION%.zip %SYMBOLS_FOLDER%\*.pdb
-if !ERRORLEVEL! NEQ 0 goto Error
-
-if "%ML_SYMBOL_STORE%" NEQ "" (
-    echo Publishing PDBs to symbol store: %ML_SYMBOL_STORE%
-    symstore add /f %SYMBOLS_FOLDER%\*.pdb /s %ML_SYMBOL_STORE% /t Moonlight
-    if !ERRORLEVEL! NEQ 0 goto Error
-) else (
-    if "%MUST_DEPLOY_SYMBOLS%"=="1" (
-        echo "A symbol server must be specified in ML_SYMBOL_STORE for signed release builds"
-        exit /b 1
-    )
-)
-
-echo Deploying Qt dependencies
-if !ERRORLEVEL! NEQ 0 goto Error
-
-echo Deleting unused styles
-rem Qt 5.x directories
-
-@REM echo Building MSI
-@REM msbuild -Restore %SOURCE_ROOT%\wix\Moonlight\Moonlight.wixproj /p:Configuration=%BUILD_CONFIG% /p:Platform=%ARCH%
-@REM if !ERRORLEVEL! NEQ 0 goto Error
 
 echo Copying application binary to deployment directory
 copy %BUILD_FOLDER%\app\%BUILD_CONFIG%\Moonlight.exe %DEPLOY_FOLDER%
